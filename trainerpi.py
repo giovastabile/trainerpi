@@ -21,7 +21,7 @@ def Average(lst):
 # --------------------------------------------------------------------------- #
 #  SETTINGS                                                                   #
 # --------------------------------------------------------------------------- #
-ROLLING_LENGTH = 2096.  # mm
+ROLLING_LENGTH = 2023.  # mm
 POWER_CURVE1 = numpy.loadtxt("power-1.csv", delimiter=",")
 POWER_CURVE2 = numpy.loadtxt("power-2.csv", delimiter=",")
 POWER_CURVE3 = numpy.loadtxt("power-3.csv", delimiter=",")
