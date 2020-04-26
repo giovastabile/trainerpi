@@ -30,7 +30,7 @@ POWER_CURVE5 = numpy.loadtxt("power-5.csv", delimiter=",")
 SCREEN_SIZE = WIDTH, HEIGHT = 800, 1000
 BORDER = 10
 FONT_NAME = "DejaVuSans"
-FONT_SIZE = 24
+FONT_SIZE = 40
 SCREEN_UPDATE_DELAY = 0.01  # Display update should be fast for the timer to "look" right
 # CSC_SENSOR_ADDRESSES = (
 #     "D0:75:E8:97:42:37",
