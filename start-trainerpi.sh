@@ -1,5 +1,6 @@
 #!/bin/bash
-
+initConda
+conda activate
 # Ensure that bluetooth is powered on
 bluetoothctl power on
 

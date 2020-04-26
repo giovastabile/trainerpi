@@ -2,27 +2,53 @@ import asyncio
 import bleCSC
 import collections
 import numpy
+from scipy import interpolate
 import os
 import pygame
 import time
+tstart = time.time()
 
+
+
+towrite=["time", "speed", "cadence", "power1", "power2" , "power3"]
+f = open("training.txt","a+")
+f.write(str(towrite)[1:-1]+"\n")
+f.close()
+
+def Average(lst): 
+    return sum(lst) / len(lst)
 
 # --------------------------------------------------------------------------- #
 #  SETTINGS                                                                   #
 # --------------------------------------------------------------------------- #
 ROLLING_LENGTH = 2096.  # mm
-POWER_CURVE = numpy.loadtxt("power-4.csv", delimiter=",")
-SCREEN_SIZE = WIDTH, HEIGHT = 320, 240
+POWER_CURVE1 = numpy.loadtxt("power-1.csv", delimiter=",")
+POWER_CURVE2 = numpy.loadtxt("power-2.csv", delimiter=",")
+POWER_CURVE3 = numpy.loadtxt("power-3.csv", delimiter=",")
+POWER_CURVE4 = numpy.loadtxt("power-4.csv", delimiter=",")
+POWER_CURVE5 = numpy.loadtxt("power-5.csv", delimiter=",")
+SCREEN_SIZE = WIDTH, HEIGHT = 800, 1000
 BORDER = 10
 FONT_NAME = "DejaVuSans"
-FONT_SIZE = 28
-SCREEN_UPDATE_DELAY = 0.05  # Display update should be fast for the timer to "look" right
+FONT_SIZE = 24
+SCREEN_UPDATE_DELAY = 0.01  # Display update should be fast for the timer to "look" right
+# CSC_SENSOR_ADDRESSES = (
+#     "D0:75:E8:97:42:37",
+#     "D4:75:F1:27:D1:56"
+# )
 CSC_SENSOR_ADDRESSES = (
-    "D0:AC:A5:BF:B7:52",
-    "C6:F9:84:6A:C0:8E"
+    "D4:75:F1:27:D1:56",
+    "D0:75:E8:97:42:37"
 )
 
-
+power1 = interpolate.interp1d(POWER_CURVE1[:, 0], POWER_CURVE1[:, 1],fill_value="extrapolate")
+power2 = interpolate.interp1d(POWER_CURVE2[:, 0], POWER_CURVE2[:, 1],fill_value="extrapolate")
+power3 = interpolate.interp1d(POWER_CURVE3[:, 0], POWER_CURVE3[:, 1],fill_value="extrapolate")
+power4 = interpolate.interp1d(POWER_CURVE4[:, 0], POWER_CURVE4[:, 1],fill_value="extrapolate")
+power5 = interpolate.interp1d(POWER_CURVE5[:, 0], POWER_CURVE5[:, 1],fill_value="extrapolate")
+powHis1 = []
+powHis2 = []
+powHis3 = []
 display_column = collections.namedtuple("display_column", ("title", "data"))
 display_data = {}
 SIGNAL_EXIT = False
@@ -49,37 +75,96 @@ class CSCTrainer(TrainerThread):
 
         if "Wheel" in self._location and wheel_speed is not None:
             speed = wheel_speed * 3600. * ROLLING_LENGTH / 1e+6
-            power = numpy.interp(speed, POWER_CURVE[:, 0], POWER_CURVE[:, 1])
-
-            display_data[(self.display_row, 0)] = display_column(
-                self._location,
+            p1 = power1(speed)
+            p2 = power2(speed) 
+            p3 = power3(speed)
+            p4 = power4(speed)
+            p5 = power5(speed)
+            powHis1.append(p1)
+            powHis2.append(p2)
+            powHis3.append(p3)
+            towrite[0]=time.time()-tstart
+            towrite[1]=speed
+            towrite[3]=float(p1)
+            towrite[4]=float(p2)
+            towrite[5]=float(p3)
+            display_data[(1, 0)] = display_column(
+                "Speed",
                 "{:2.0f} km/h".format(
                     wheel_speed * 3600. * ROLLING_LENGTH / 1e+6
                 )
             )
-            display_data[(self.display_row, 1)] = display_column(
-                "{:6.2f} km".format(cumulative_rotations * ROLLING_LENGTH / 1e+6),
-                "{:3.0f} W".format(power)
+
+            display_data[(0, 1)] = display_column(
+            	"Distance",
+                "{:6.2f} km".format(cumulative_rotations * ROLLING_LENGTH / 1e+6)
+            )
+            display_data[(2, 0)] = display_column(
+            	"P1",
+                "{:3.0f} W".format(p1)
+            )
+            display_data[(2, 1)] = display_column(
+            	"P2",
+                "{:3.0f} W".format(p2)
+            )
+            display_data[(3, 0)] = display_column(
+            	"P3",
+                "{:3.0f} W".format(p3)
+            )
+            display_data[(3, 1)] = display_column(
+            	"P4",
+                "{:3.0f} W".format(p4)
+            )
+            display_data[(4, 0)] = display_column(
+            	"P5",
+                "{:3.0f} W".format(p5)
+            )
+            display_data[(4, 1)] = display_column(
+            	"Pav1",
+                "{:3.0f} W".format(Average(powHis1))
+            )
+            display_data[(5, 0)] = display_column(
+            	"Pav2",
+                "{:3.0f} W".format(Average(powHis2))
+            )
+            display_data[(5, 1)] = display_column(
+            	"Pav3",
+                "{:3.0f} W".format(Average(powHis3))
             )
 
+
         if "Crank" in self._location and crank_speed is not None:
-            display_data[(self.display_row, 0)] = display_column(
-                self._location,
+            display_data[(1, 1)] = display_column(
+                "Cadence",
                 "{:3.0f} RPM".format(
                     crank_speed * 60.
                 )
             )
+            towrite[2] = crank_speed * 60.
+        f = open("training.txt","a+")
+        f.write(str(towrite)[1:-1]+"\n")
+        f.close()
 
     async def worker(self):
         global SIGNAL_EXIT, display_data
-
+        print(self.display_row)
         display_data[(self.display_row, 0)] = display_column("Connecting for Sensor:", self.address)
 
         sensor = bleCSC.CSCSensor()
         sensor.connect(self.address, self.handle_notification)
         display_data[(self.display_row, 0)] = display_column("Waiting for Loc'n:", self.address)
         await asyncio.sleep(0.0)
-        self._location = sensor.get_location()
+        print(self.address)
+        if(self.address=="D0:75:E8:97:42:37"):
+        	self._location = "Rear Wheel"
+
+        if(self.address=="D4:75:F1:27:D1:56"):
+        	self._location = "Right Crank"
+
+        print(self._location)
+        # self._location=sensor.get_location()
+        
+        #print(sensor.get_location())
         display_data[(self.display_row, 0)] = display_column("Waiting for Data:", self.address)
         await asyncio.sleep(0.0)
         sensor.notifications(True)
@@ -165,7 +250,7 @@ class ScreenUpdateTrainer(TrainerThread):
 
     def draw_segment(self, seg: tuple, title: str, data: str, color: tuple):
         seg_width = WIDTH // 2
-        seg_height = HEIGHT // 3
+        seg_height = HEIGHT // 6
         x0 = seg_width * seg[1] + BORDER
         y0 = seg_height * seg[0] + BORDER
         x1 = seg_width * (seg[1] + 1) - BORDER
@@ -197,3 +282,4 @@ def run_trainer():
 
 if __name__ == "__main__":
     run_trainer()
+
